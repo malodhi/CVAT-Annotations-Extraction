@@ -64,19 +64,21 @@ class AugmentData(object):
                               remove_bboxes: bool = True) -> List[Union[int, int, int, int, str]]:
         """
         Params:
-            bboxes -->   [ ['x_min', 'y_min', 'x_max', 'y_max', 'Text'],
-                            ['x_min', 'y_min', 'x_max', 'y_max', 'Text'],  ... ]
+            bboxes -->   [ [x_min, y_min, x_max, y_max, 'Text'],
+                            [x_min, y_min, x_max, y_max, 'Text'],  ... ]
         Objective:
-            Either remove the bboxes with out-of-bound coordinates of clip them to max/min of image shape
+            Either remove the bboxes with out-of-bound coordinates (Recommended) OR clip them to max/min of image shape
+
+        Issues:
+            np.asarray --> this operation ultimately converts all the datatypes into single datatypes.
+                            because out {bboxes} have both str and int values therefore asarray function
+                            converts int to str values. Even converting types of few columns, using astypes,
+                            would not be helpfull.
+            np.concatenate --> this function will behave same as above. If we try to cocatenate or stack int values
+                            matrix and str matrix then the resulting matrix dataype will be str only.
+                            Thus, to avoid this issue we convert the matrix into list and merge them.
         """
-        #  np.asarray --> this operation ultimately converts all the datatypes into single datatypes.
-        #                 because out {bboxes} have both str and int values therefore asarray function
-        #                 converts int to str values. Even converting types of few columns, using astypes,
-        #                 would not be helpfull.
-        # np.concatenate --> this function will behave same as above. If we try to cocatenate or stack int values
-        #                 matrix and str matrix then the resulting matrix dataype will be str only.
-        #                 Thus, to avoid this issue we convert the matrix into list and merge them.
-        max_normalized_value = 1
+
         bboxes = np.asarray(bboxes)
         # separate bboxes labels and coordinates:
         labels = bboxes[:, -1]
@@ -112,8 +114,8 @@ class AugmentData(object):
         """
         img_deepcopy = copy.deepcopy(image)
         _height, _width, _ = image.shape
-        # we clip the bbox coordinates because CVAT can make points outside image which results in
-        # error while using annotations_format 'pascal_voc' to normalize the coordinates.
+        # Note: we clip the bbox coordinates because CVAT can make points outside image which results in
+        #       error while using annotations_format 'pascal_voc' to normalize the coordinates.
         image_bboxes = self.clip_or_remove_bboxes(image_bboxes, _height, _width)
         transform_images = list()
         for _ in range(self.num_of_augmentations):
@@ -123,7 +125,6 @@ class AugmentData(object):
     @staticmethod
     def pixel_level_transforms() -> List:
         return list([
-            # A.AdvancedBlur(p=0.7),
             A.ColorJitter(p=0.7),
             A.Downscale(p=0.4),
             A.ChannelShuffle(p=0.3),
