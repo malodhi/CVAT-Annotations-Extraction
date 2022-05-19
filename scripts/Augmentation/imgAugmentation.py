@@ -163,7 +163,9 @@ class AugmentData(object):
                 bbox_params=A.BboxParams(format=self.annotations_format))
 
 
-class CnicCvatDataset(Dataset, AugmentData, PlotImagesAnnotations):
+
+
+class AnyDataset(Dataset, AugmentData, PlotImagesAnnotations):
 
     @staticmethod
     def polygon2rect(coordinates: Sequence[str]) -> List[Optional[str]]:
