@@ -1,7 +1,7 @@
 from torch.utils.data import Dataset
 import xml.etree.ElementTree as ET
 from matplotlib import pyplot as plt
-from typing import List, Union, Tuple, Optional, Sequence
+from typing import List, Union, Tuple, Optional, Sequence, Dict
 from operator import itemgetter
 import albumentations as A
 from pathlib import Path
@@ -28,7 +28,7 @@ class PlotImagesAnnotations(object):
         fig.set_size_inches(np.array(fig.get_size_inches()) * n_images)
         plt.show()
 
-    def plot_bbox(self, img: np.ndarray, bboxes: List[Union[int, int, int, int, str]]) -> np.ndarray:
+    def plot_bbox(self, img: np.ndarray, bboxes: List[List[Union[int, int, int, int, str]]]) -> np.ndarray:
         for bbox in bboxes:
             # bbox --> [x_min, y_min, x_max, y_max, 'Text']
             start_point = (int(bbox[0]), int(bbox[1]))
@@ -163,9 +163,7 @@ class AugmentData(object):
                 bbox_params=A.BboxParams(format=self.annotations_format))
 
 
-
-
-class AnyDataset(Dataset, AugmentData, PlotImagesAnnotations):
+class CnicCvatDataset(Dataset, AugmentData, PlotImagesAnnotations):
 
     @staticmethod
     def polygon2rect(coordinates: Sequence[str]) -> List[Optional[str]]:
@@ -184,7 +182,7 @@ class AnyDataset(Dataset, AugmentData, PlotImagesAnnotations):
         rect_coodinates = [start_point, top_right_point, end_point, bottom_left_point]
         return [",".join([str(point[0]), str(point[1])]) for point in rect_coodinates]
 
-    def read_xml_annot(self) -> List:
+    def read_xml_annot(self) -> Dict:
         """
         Return: {
                 'image_name' :
