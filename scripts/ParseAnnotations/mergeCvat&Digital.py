@@ -80,7 +80,6 @@ class Merge(object):
         sampleMatFile['imnames'] = np.asarray(list(self.allCharCoords.keys())).reshape(1, -1)
 
 
-
 if __name__ == '__main__':
     MatFile = loadmat('/home/mansoor/Projects/Craft-Training/dataset/craft-english/gt.mat')
     mergeAnnotations = Merge()

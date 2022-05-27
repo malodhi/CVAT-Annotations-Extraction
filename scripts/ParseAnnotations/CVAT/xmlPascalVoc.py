@@ -3,7 +3,6 @@ import numpy as np
 from torch.utils.data import Dataset
 import xml.etree.ElementTree as ET
 from typing import Sequence, List, Optional, Dict, Any, Union, Tuple
-from operator import itemgetter
 from pathlib import Path
 import imghdr
 import cv2
@@ -50,7 +49,7 @@ class PascalVocXml(Dataset):
                 continue
             bboxes = list()
             for bbox in img.getchildren():
-                if bbox.attrib.get('label') in ['Textline', 'Punctuation'] or not bbox.attrib.get('points'):
+                if bbox.attrib.get('label') in ['Textline', 'Punctuation', 'Character', 'Line'] or not bbox.attrib.get('points'):
                     # Rest all labels are assumed to represent word bbox irrespective of language
                     continue
                 coordinates = bbox.attrib.get('points').split(';')
@@ -98,9 +97,7 @@ class PascalVocXml(Dataset):
         img_file = self.imgDir / self.imgFiles[index]
         bboxes = self.annotations.get(self.imgFiles[index]).get('bboxes')
         img = cv2.imread(img_file.as_posix())
-        print("Image Shape:   ", img.shape)
-        print("Image Shape Attrib:   ", (self.annotations.get(self.imgFiles[index]).get('height'),
-                                         self.annotations.get(self.imgFiles[index]).get('width')))
+        print(f"Image File :   {img_file}\n")
         bbox_img = self.plot_annots.plot_bbox(img, bboxes)
         plt.imshow(bbox_img)
         plt.show()
@@ -109,8 +106,8 @@ class PascalVocXml(Dataset):
 
 if __name__ == '__main__':
     dataset = PascalVocXml(
-        '/home/mansoor/Projects/Yolov5-nano-Word-Detector/dataset/words-dataset/wla-1',
-        '/home/mansoor/Projects/Yolov5-nano-Word-Detector/dataset/words-dataset/wla-1/images',
-        '/home/mansoor/Projects/Yolov5-nano-Word-Detector/dataset/words-dataset/wla-1/annotations.xml',
+        '/home/mansoor/Projects/Yolov5-nano-Word-Detector/dataset/Cvat-Words-Dataset/wla-3',
+        '/home/mansoor/Projects/Yolov5-nano-Word-Detector/dataset/Cvat-Words-Dataset/wla-3/images',
+        '/home/mansoor/Projects/Yolov5-nano-Word-Detector/dataset/Cvat-Words-Dataset/wla-3/annotations.xml',
     )
     list([_ for _ in dataset])

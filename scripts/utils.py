@@ -2,12 +2,17 @@ import glob
 import os
 import numpy as np
 from pathlib import Path
-from typing import List, Union, Tuple, Dict
+from typing import List, Union, Tuple, Dict, Any
 import subprocess as sp
 from natsort import natsorted
 from scipy.io import loadmat, savemat
 import cv2
 import random
+
+import yaml
+import json
+from omegaconf import OmegaConf
+import pickle
 
 from pdf2image import convert_from_path
 
@@ -178,7 +183,8 @@ def resize_bboxes(current_bboxes: List[List[Union[float, str]]], currentImgSize:
     return coordinates
 
 
-def normalize_bboxes(current_bboxes: List[List[Union[float, str]]], currentImgSize: Tuple[int, int]) -> List[List[Union[float, str]]]:
+def normalize_bboxes(current_bboxes: List[List[Union[float, str]]], currentImgSize: Tuple[int, int]) \
+        -> List[List[Union[float, str]]]:
     bboxes = np.asarray(current_bboxes)
     labels = bboxes[:, -1]  # separate bboxes labels and coordinates:
     coordinates = bboxes[:, [0, 1, 2, 3]].astype('float')
@@ -216,6 +222,15 @@ def plot_bbox(img: np.ndarray, bboxes: List[List[Union[int, int, int, int, str]]
     return img
 
 
+def find_min_max_coordinates(coordinates: List) -> Dict:
+    coordinates = np.asarray(coordinates).astype(int)
+    x_indices = np.arange(0, len(coordinates), 2)
+    y_indices = np.arange(1, len(coordinates), 2)
+    x_coordinates, y_coordinates = coordinates[x_indices], coordinates[y_indices]
+    x_min, y_min, x_max, y_max = min(x_coordinates), min(y_coordinates), max(x_coordinates), max(y_coordinates)
+    return dict(x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max)
+
+
 def search_file(searchDir: str, pattern: str) -> str:
     file = searchDir + '/' + pattern
     files = glob.glob(file)
@@ -233,6 +248,152 @@ def split_train_test_indices(totLength: int, perVal: float)-> Dict[str, Union[se
     return dict(trainIndices=trainIndices, valIndices=valIndices)
 
 
+def rename_files(dirPath: str):
+    dirPath = Path(dirPath)
+    for file in dirPath.iterdir():
+        source = file
+        destination = dirPath / file.name.replace('gt_', '').replace('img_', '')
+        os.rename(source, destination)
+
+
+def pascalVoc_to_Coco128(bboxes: List[List[Union[float, str]]], imgWidth: int, imgHeight=int) -> \
+        List[List[Union[float, str]]]:
+    """
+    Input (pascal) Format:   [ [x_min, y_min, x_max, y_max, 'Text'], [], ....]
+    Output (coco128) Format: [ [0, x_center, y_center, width, height], [], ....]
+    """
+    bboxes = np.asarray(bboxes)
+    labels = bboxes[:, -1]  # separate bboxes labels and coordinates:
+    labels = np.asarray([0 for _ in labels])
+
+    coordinates = bboxes[:, [0, 1, 2, 3]].astype('float')
+    coordinates[:, [0, 2]] = coordinates[:, [0, 2]] / int(imgWidth)
+    coordinates[:, [1, 3]] = coordinates[:, [1, 3]] / int(imgHeight)
+
+    bboxes_width = coordinates[:, 2] - coordinates[:, 0]
+    bboxes_height = coordinates[:, 3] - coordinates[:, 1]
+    x_center = coordinates[:, 0] + (bboxes_width / 2)
+    y_center = coordinates[:, 1] + (bboxes_height / 2)
+
+    x_center, y_center, bboxes_width, bboxes_height, labels = \
+        x_center[..., None], y_center[..., None], bboxes_width[..., None], bboxes_height[..., None], labels[..., None]
+
+    cocoBboxes = np.concatenate((labels, x_center, y_center, bboxes_width, bboxes_height), axis=1)
+
+    return cocoBboxes
+
+
+def read_txt(file_path: str):
+    with open(file_path, "r", encoding="utf-8") as f:
+        return f.readlines()
+
+
+def writeNdarryToText(file_path: str, array: np.ndarray):
+    """Write data to text file"""
+    file_path = apply_extension(file_path, "txt")
+    ensure_dir_exists(file_path)
+    fileHandler = open(file_path, 'w')
+    for bbox in array:
+        line = f"{bbox[0]} {bbox[1]} {bbox[2]} {bbox[3]} {bbox[4]}\n"
+        fileHandler.write(line)
+    print(f"Wrote File {file_path}")
+
+
+def get_image_dim(img: np.ndarray) -> Dict:
+    img_dims = len(img.shape)
+    if img_dims == 2:
+        height, width = img.shape
+        channels = 1
+    elif img_dims == 3:
+        height, width, channels = img.shape
+    else:
+        height = width = channels = None
+    return dict(height=height, width=width, channels=channels)
+
+# ----------------   M.I.Baig  ------------------
+
+
+def read_pickle(file_path: str) -> Any:
+    """Return data from pickle file"""
+    with open(file_path, "rb") as f:
+        try:
+            file_data = pickle.load(f)
+            return file_data
+        except pickle.UnpicklingError as e:
+            print(e)
+
+
+class PrettySafeLoader(yaml.SafeLoader):
+    def construct_python_tuple(self, node):
+        return tuple(self.construct_sequence(node))
+
+
+PrettySafeLoader.add_constructor(
+    tag='tag:yaml.org,2002:python/tuple',
+    constructor=PrettySafeLoader.construct_python_tuple)
+
+
+def write_txt(file_path: str, data: str):
+    """Write data to text file"""
+    file_path = apply_extension(file_path, "txt")
+    ensure_dir_exists(file_path)
+    with open(file_path, "w") as f:
+        f.write(data)
+
+
+def read_yaml(file_path: str, as_dict_conf: bool = False):
+    """Return data from yaml file"""
+    with open(file_path, "r", encoding="utf-8") as f:
+        try:
+            file_data = yaml.load(f, PrettySafeLoader)
+            file_data = file_data if file_data is not None else dict()
+            file_data = OmegaConf.create(file_data) if as_dict_conf else file_data
+            return file_data
+        except yaml.YAMLError as e:
+            print(e)
+
+
+def write_yaml(file_path: str, data: Any, sort_keys: bool = True) -> None:
+    """Write data to yaml file"""
+    file_path = apply_extension(file_path, "yaml")
+    ensure_dir_exists(file_path)
+    with open(file_path, "w") as f:
+        yaml.dump(data, f, sort_keys=sort_keys)
+
+
+def read_json(file_path: str) -> Any:
+    """Return data from json file"""
+    with open(file_path, "r", encoding="utf-8") as f:
+        try:
+            file_data = json.load(f)
+            return file_data
+        except json.JSONDecodeError as e:
+            print(e)
+
+
+def write_json(file_path: str, data: Any, sort_keys: bool = True) -> None:
+    """Write data to json file"""
+    file_path = apply_extension(file_path, "json")
+    ensure_dir_exists(file_path)
+    with open(file_path, "w") as f:
+        json.dump(data, f, sort_keys=sort_keys)
+
+
+def ensure_dir_exists(path: str) -> None:
+    """Create parent directories to path"""
+    ppath = Path(path)
+    dir_ppath = ppath if not ppath.suffix else ppath.parent
+    dir_ppath.mkdir(parents=True, exist_ok=True)
+
+
+def apply_extension(file_path: str, extension: str) -> str:
+    """Return file_path with extension"""
+    file_ppath = Path(file_path)
+    if file_ppath.suffix != extension:
+        file_ppath = file_ppath.with_suffix(".{}".format(extension))
+    return file_ppath.as_posix()
+
+
 if __name__ == '__main__':
     """ Convert Pdf 2 Images:
     pdfs = '/home/mansoor/Projects/Craft-Training/dataset/CNIC-Static&Dynamic-CharAnnots' \
@@ -242,4 +403,4 @@ if __name__ == '__main__':
     """
     # MatFile = loadmat('/home/mansoor/Projects/Craft-Training/dataset/craft-english/gt.mat')
     # print()
-    split_train_test_indices(120, 0.14)
+    rename_files('/home/mansoor/Projects/Yolov5-nano-Word-Detector/dataset/ICDAR_2017/images/test')

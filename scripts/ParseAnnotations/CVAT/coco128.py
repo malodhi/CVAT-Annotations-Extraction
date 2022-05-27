@@ -11,8 +11,8 @@ from scripts.utils import search_file
 class CoCo128(object):
     def __init__(self, dataDir: str):
         self.dataDir = Path(dataDir)
-        self.imgDir = self.dataDir / 'images'
-        self.lblDir = self.dataDir / 'labels'
+        self.imgDir = self.dataDir / 'images/train'
+        self.lblDir = self.dataDir / 'labels/train'
 
         if not self.dataDir.exists() or not self.imgDir.exists() or not self.lblDir.exists():
             raise Exception("Data Directory Not Complete !")
@@ -28,6 +28,7 @@ class CoCo128(object):
         img = plt.imread(imgFile)
         bboxes = self.readTextAnnots(lblFile)
         bboxes = self.extract_start_end_points(bboxes, img)
+        print(bboxes)
         img = self.plot_bboxes(img, bboxes)
         plt.imshow(img)
         plt.show()
