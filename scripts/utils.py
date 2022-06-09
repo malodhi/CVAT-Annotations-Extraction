@@ -196,19 +196,27 @@ def normalize_bboxes(current_bboxes: List[List[Union[float, str]]], currentImgSi
     return coordinates
 
 
-def resize_images(imgDir: str, resizeTo: Tuple[int, int], imgFmts: List[Union[str]], overwrite: bool = True):
+def resize_images(imgDir: str, resizeTo: Tuple[int, int], imgFmts: List[Union[str]] = [], overwrite: bool = True):
     #todo: test this function ....
     imgDir = Path(imgDir)
     if not imgDir.exists():
         raise Exception("Image Dir Doesn't Exists !")
     for file in imgDir.iterdir():
-        if file.suffix in imgFmts:
-            if overwrite:
-                img = cv2.imread(file.as_posix())
-                img = cv2.resize(img, resizeTo)
-                cv2.imwrite(file.as_posix(), img)
-                print(f"Overwriting Image at {file.as_posix()}")
-
+        if imgFmts and file.suffix not in imgFmts:
+            continue
+        if overwrite:
+            img = cv2.imread(file.as_posix())
+            img = cv2.resize(img, resizeTo)
+            cv2.imwrite(file.as_posix(), img)
+            print(f"Overwriting Image at {file.as_posix()}")
+        else:
+            writeToDir = imgDir.parent / 'Resized_Images'
+            writeToDir.mkdir(parents=True, exist_ok=True)
+            img = cv2.imread(file.as_posix())
+            img = cv2.resize(img, resizeTo)
+            writefile = writeToDir / file.name
+            cv2.imwrite(writefile.as_posix(), img)
+            print(f"Writing Image {writefile}")
 
 def plot_bbox(img: np.ndarray, bboxes: List[List[Union[int, int, int, int, str]]],
               bbox_color: Tuple[int, int, int] = (255, 0, 0),
@@ -403,4 +411,5 @@ if __name__ == '__main__':
     """
     # MatFile = loadmat('/home/mansoor/Projects/Craft-Training/dataset/craft-english/gt.mat')
     # print()
-    rename_files('/home/mansoor/Projects/Yolov5-nano-Word-Detector/dataset/ICDAR_2017/images/test')
+    resize_images('/home/mansoor/Projects/Yolov5-nano-Word-Detector/runs/detect/Dataset_T',
+                  resizeTo=(640, 640), overwrite=False)
